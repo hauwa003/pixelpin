@@ -31,8 +31,24 @@ async function init() {
   isInspecting = state?.inspecting || false;
   updateInspectButton();
 
+  // Show pin markers on page while popup is open
+  if (tab?.id) {
+    chrome.tabs.sendMessage(tab.id, { type: 'SHOW_PINS' }).catch(() => {});
+  }
+
   await loadPins();
 }
+
+// Hide pin markers from page when popup closes
+window.addEventListener('unload', () => {
+  if (!isInspecting) {
+    chrome.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
+      if (tab?.id) {
+        chrome.tabs.sendMessage(tab.id, { type: 'HIDE_PINS' }).catch(() => {});
+      }
+    });
+  }
+});
 
 // ── Inspect Toggle ──
 
