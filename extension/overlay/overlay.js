@@ -11,6 +11,8 @@ const FEEDBACK_TYPES = [
 
 const TYPE_COLORS = Object.fromEntries(FEEDBACK_TYPES.map(t => [t.label, t.color]));
 
+const TEAM_MEMBERS = ['Hauwa', 'Jaf', 'Nico', 'Dan'];
+
 class PixelPinOverlay {
   constructor() {
     this.host = document.createElement('pixelpin-overlay');
@@ -317,6 +319,54 @@ class PixelPinOverlay {
         color: #fff;
       }
       .pp-btn-reopen:hover { background: #e08e0b; }
+
+      .pp-section-label {
+        font-size: 11px;
+        font-weight: 600;
+        color: #888;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 6px;
+      }
+
+      .pp-assignee-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-bottom: 12px;
+      }
+
+      .pp-assignee-chip {
+        padding: 5px 12px;
+        border-radius: 16px;
+        border: 1.5px solid #e0e0e0;
+        background: #fff;
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: 500;
+        color: #555;
+        transition: all 0.15s;
+        pointer-events: auto;
+      }
+      .pp-assignee-chip:hover { border-color: #bbb; }
+      .pp-assignee-chip.selected {
+        background: #1a1a1a;
+        color: #fff;
+        border-color: transparent;
+      }
+
+      .pp-popover-assignee {
+        font-size: 12px;
+        color: #666;
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .pp-popover-assignee strong {
+        color: #1a1a1a;
+        font-weight: 600;
+      }
     `;
     this.shadow.appendChild(style);
   }
@@ -371,6 +421,10 @@ class PixelPinOverlay {
     }
 
     // Feedback type chips
+    const typeLabel = this._el('div', 'pp-section-label');
+    typeLabel.textContent = 'Issue Type';
+    form.appendChild(typeLabel);
+
     const chips = this._el('div', 'pp-type-chips');
     let selectedType = null;
     FEEDBACK_TYPES.forEach(ft => {
@@ -386,11 +440,37 @@ class PixelPinOverlay {
         chip.style.background = ft.color;
         chip.style.color = '#fff';
         selectedType = ft.label;
-        submitBtn.disabled = false;
+        updateSubmitState();
       };
       chips.appendChild(chip);
     });
     form.appendChild(chips);
+
+    // Assignee chips
+    const assignLabel = this._el('div', 'pp-section-label');
+    assignLabel.textContent = 'Assign To';
+    form.appendChild(assignLabel);
+
+    const assigneeChips = this._el('div', 'pp-assignee-chips');
+    let selectedAssignee = null;
+    TEAM_MEMBERS.forEach(name => {
+      const chip = this._el('button', 'pp-assignee-chip');
+      chip.textContent = name;
+      chip.onclick = () => {
+        assigneeChips.querySelectorAll('.pp-assignee-chip').forEach(c => {
+          c.classList.remove('selected');
+        });
+        chip.classList.add('selected');
+        selectedAssignee = name;
+        updateSubmitState();
+      };
+      assigneeChips.appendChild(chip);
+    });
+    form.appendChild(assigneeChips);
+
+    function updateSubmitState() {
+      submitBtn.disabled = !(selectedType && selectedAssignee);
+    }
 
     // Note textarea
     const noteInput = this._el('textarea', 'pp-note-input');
@@ -407,9 +487,10 @@ class PixelPinOverlay {
     submitBtn.textContent = 'Pin It';
     submitBtn.disabled = true;
     submitBtn.onclick = () => {
-      if (!selectedType) return;
+      if (!selectedType || !selectedAssignee) return;
       this._onFormSubmit?.({
         feedbackType: selectedType,
+        assignee: selectedAssignee,
         note: noteInput.value.trim(),
       });
       this.hideForm();
@@ -505,6 +586,13 @@ class PixelPinOverlay {
 
     header.append(badge, statusBadge);
     pop.appendChild(header);
+
+    // Assignee
+    if (pin.assignee) {
+      const assignee = this._el('div', 'pp-popover-assignee');
+      assignee.innerHTML = `Assigned to <strong>${pin.assignee}</strong>`;
+      pop.appendChild(assignee);
+    }
 
     // Note
     if (pin.note) {

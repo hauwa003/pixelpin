@@ -213,3 +213,83 @@ body {
   color: #E74C3C;
   background: #fef0ef;
 }
+
+/* Name Selection Screen */
+.name-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 280px;
+  padding: 24px 16px;
+}
+
+.name-screen-inner {
+  text-align: center;
+}
+
+.name-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin: 12px 0 4px;
+}
+
+.name-subtitle {
+  font-size: 13px;
+  color: #888;
+  margin-bottom: 20px;
+}
+
+.name-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.name-btn {
+  padding: 10px 16px;
+  border: 1.5px solid #e0e0e0;
+  border-radius: 8px;
+  background: #fff;
+  color: #1a1a1a;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.name-btn:hover {
+  border-color: #4A90D9;
+  background: #f0f6ff;
+  color: #4A90D9;
+}
+
+/* Switch user button */
+.switch-user-btn {
+  background: none;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 11px;
+  color: #888;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.switch-user-btn:hover {
+  border-color: #bbb;
+  color: #555;
+}
+
+/* User name in stats bar */
+.user-name {
+  font-weight: 600;
+  color: #4A90D9;
+}
+
+/* Assignee tag in pin list */
+.pin-assignee {
+  font-size: 11px;
+  color: #888;
+  margin-top: 1px;
+}

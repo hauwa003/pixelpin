@@ -5,33 +5,49 @@
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
-  <div class="header">
-    <div class="logo">
-      <img src="../icons/icon-48.png" alt="PixelPin" width="24" height="24">
-      <span class="logo-text">PixelPin</span>
+  <!-- Name Selection Screen -->
+  <div id="nameScreen" class="name-screen">
+    <div class="name-screen-inner">
+      <img src="../icons/icon-48.png" alt="PixelPin" width="36" height="36">
+      <h2 class="name-title">Who are you?</h2>
+      <p class="name-subtitle">Select your name to see pins assigned to you.</p>
+      <div id="nameButtons" class="name-buttons"></div>
     </div>
   </div>
 
-  <button id="inspectBtn" class="inspect-btn">
-    <span class="inspect-icon">&#9678;</span>
-    <span id="inspectLabel">Start Inspecting</span>
-  </button>
-
-  <div class="stats-bar">
-    <span id="totalCount" class="stat">0 pins</span>
-    <span class="stat-divider">|</span>
-    <span id="pendingCount" class="stat pending">0 pending</span>
-  </div>
-
-  <div id="pinList" class="pin-list">
-    <div class="empty-state" id="emptyState">
-      <p>No pins on this page yet.</p>
-      <p class="hint">Start inspecting to pin feedback.</p>
+  <!-- Main Screen -->
+  <div id="mainScreen" style="display:none;">
+    <div class="header">
+      <div class="logo">
+        <img src="../icons/icon-48.png" alt="PixelPin" width="24" height="24">
+        <span class="logo-text">PixelPin</span>
+      </div>
+      <button id="switchUserBtn" class="switch-user-btn" title="Switch user"></button>
     </div>
-  </div>
 
-  <div class="footer">
-    <button id="clearBtn" class="clear-btn" style="display:none;">Clear All Pins</button>
+    <button id="inspectBtn" class="inspect-btn">
+      <span class="inspect-icon">&#9678;</span>
+      <span id="inspectLabel">Start Inspecting</span>
+    </button>
+
+    <div class="stats-bar">
+      <span id="userName" class="stat user-name"></span>
+      <span class="stat-divider">|</span>
+      <span id="totalCount" class="stat">0 pins</span>
+      <span class="stat-divider">|</span>
+      <span id="pendingCount" class="stat pending">0 pending</span>
+    </div>
+
+    <div id="pinList" class="pin-list">
+      <div class="empty-state" id="emptyState">
+        <p>No pins assigned to you on this page.</p>
+        <p class="hint">Start inspecting to pin feedback.</p>
+      </div>
+    </div>
+
+    <div class="footer">
+      <button id="clearBtn" class="clear-btn" style="display:none;">Clear All Pins</button>
+    </div>
   </div>
 
   <script src="popup.js"></script>
