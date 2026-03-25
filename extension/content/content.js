@@ -107,12 +107,17 @@
     document.addEventListener('mousemove', onMouseMove, true);
     document.addEventListener('click', onClick, true);
     document.addEventListener('keydown', onKeyDown, true);
+    // Show existing pins when inspecting starts
+    loadPins();
   }
 
   function stopInspecting() {
     inspecting = false;
     overlay.hideHighlight();
     overlay.hideForm();
+    overlay.hidePopover();
+    overlay.clearMarkers();
+    pins = [];
     document.removeEventListener('mousemove', onMouseMove, true);
     document.removeEventListener('click', onClick, true);
     document.removeEventListener('keydown', onKeyDown, true);
@@ -237,7 +242,7 @@
   function onScrollResize() {
     clearTimeout(scrollTimer);
     scrollTimer = setTimeout(() => {
-      if (pins.length) renderPins();
+      if (inspecting && pins.length) renderPins();
     }, 100);
   }
 
@@ -262,7 +267,19 @@
         break;
 
       case 'LOAD_PINS':
+        if (inspecting) loadPins();
+        sendResponse({ success: true });
+        break;
+
+      case 'SHOW_PINS':
         loadPins();
+        sendResponse({ success: true });
+        break;
+
+      case 'HIDE_PINS':
+        overlay.clearMarkers();
+        overlay.hidePopover();
+        pins = [];
         sendResponse({ success: true });
         break;
 
@@ -272,6 +289,6 @@
     return false; // synchronous responses
   });
 
-  // ── Initialize: load existing pins ──
-  loadPins();
+  // Pins are only shown when the extension is actively used (inspecting or popup open).
+  // No auto-load on page init — zero visual traces until user opens PixelPin.
 })();
