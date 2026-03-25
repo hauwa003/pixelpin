@@ -13,6 +13,7 @@
   let inspecting = false;
   let pins = [];
   let currentUrl = location.href;
+  let currentUser = '';
 
   // ── CSS Extraction ──
 
@@ -201,8 +202,10 @@
     document.addEventListener('mousemove', onMouseMove, true);
     document.addEventListener('click', onClick, true);
     document.addEventListener('keydown', onKeyDown, true);
-    // Show existing pins when inspecting starts
-    loadPins();
+    // Show existing pins + dock when inspecting starts
+    loadPins().then(() => {
+      overlay.showDock(pins, handleDockAction);
+    });
   }
 
   function stopInspecting() {
@@ -210,6 +213,7 @@
     overlay.hideHighlight();
     overlay.hideForm();
     overlay.hidePopover();
+    overlay.hideDock();
     overlay.clearMarkers();
     pins = [];
     document.removeEventListener('mousemove', onMouseMove, true);
@@ -227,15 +231,32 @@
     const el = document.elementFromPoint(e.clientX, e.clientY);
     if (!el || isOwnElement(el)) {
       overlay.hideHighlight();
+      overlay.updateDockInspectTarget('');
       return;
     }
     const rect = el.getBoundingClientRect();
     overlay.showHighlight(rect);
+
+    // Update dock with hovered element label
+    if (overlay.isDockVisible) {
+      const tag = el.tagName.toLowerCase();
+      const cls = el.classList[0] ? `.${el.classList[0]}` : '';
+      overlay.updateDockInspectTarget(`${tag}${cls}`);
+    }
   }
 
   function onClick(e) {
     if (!inspecting) return;
     if (overlay.isFormVisible) return;
+
+    // Collapse dock if expanded and user clicks on page (not on dock itself)
+    if (overlay.isDockExpanded) {
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      if (!isOwnElement(el)) {
+        overlay.collapseDock();
+      }
+      return;
+    }
 
     const el = document.elementFromPoint(e.clientX, e.clientY);
     if (!el || isOwnElement(el)) return;
@@ -308,6 +329,10 @@
     if (response?.success) {
       pins = response.pins;
       renderPins();
+      // Keep dock in sync
+      if (overlay.isDockVisible) {
+        overlay.updateDockPins(pins);
+      }
     }
   }
 
@@ -333,6 +358,42 @@
       });
     }
     await loadPins();
+  }
+
+  // Dock-specific action handler
+  async function handleDockAction(action, pin) {
+    if (action === 'stop-inspecting') {
+      stopInspecting();
+      chrome.runtime.sendMessage({ type: 'INSPECT_STOPPED' }).catch(() => {});
+      return;
+    }
+
+    if (action === 'locate' && pin) {
+      // Scroll to pin location and flash the marker
+      const targetY = pin.boundingBox.top - window.innerHeight / 3;
+      window.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' });
+      // Flash marker after scroll
+      setTimeout(() => {
+        renderPins();
+        const markers = overlay.markersContainer.querySelectorAll('.pp-marker');
+        markers.forEach(m => {
+          if (m.textContent == pin.number) {
+            m.style.transition = 'transform 0.2s';
+            m.style.transform = 'scale(1.6)';
+            setTimeout(() => { m.style.transform = 'scale(1)'; }, 400);
+          }
+        });
+      }, 400);
+      return;
+    }
+
+    if (action === 'resolve' && pin) {
+      await chrome.runtime.sendMessage({
+        type: 'UPDATE_PIN',
+        payload: { url: currentUrl, id: pin.id, updates: { status: 'Resolved' } },
+      });
+      await loadPins();
+    }
   }
 
   // ── Scroll/Resize handling ──
@@ -379,6 +440,11 @@
         overlay.clearMarkers();
         overlay.hidePopover();
         pins = [];
+        sendResponse({ success: true });
+        break;
+
+      case 'SET_USER':
+        currentUser = msg.payload?.user || '';
         sendResponse({ success: true });
         break;
 
