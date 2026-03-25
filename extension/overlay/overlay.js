@@ -11,6 +11,14 @@ const FEEDBACK_TYPES = [
 
 const TYPE_COLORS = Object.fromEntries(FEEDBACK_TYPES.map(t => [t.label, t.color]));
 
+const SEVERITIES = [
+  { label: 'Critical', color: '#E74C3C' },
+  { label: 'Improvement', color: '#F39C12' },
+  { label: 'Nice-to-have', color: '#95A5A6' },
+];
+
+const SEVERITY_COLORS = Object.fromEntries(SEVERITIES.map(s => [s.label, s.color]));
+
 const TEAM_MEMBERS = ['Hauwa', 'Jaf', 'Nico', 'Dan'];
 
 class PixelPinOverlay {
@@ -147,6 +155,21 @@ class PixelPinOverlay {
         border-color: transparent;
       }
 
+      .pp-expected-input {
+        width: 100%;
+        padding: 8px 10px;
+        border: 1.5px solid #e0e0e0;
+        border-radius: 8px;
+        font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+        font-size: 13px;
+        outline: none;
+        margin-bottom: 12px;
+        color: #1a1a1a;
+        background: #fff;
+      }
+      .pp-expected-input:focus { border-color: #4A90D9; }
+      .pp-expected-input::placeholder { color: #aaa; }
+
       .pp-note-input {
         width: 100%;
         min-height: 60px;
@@ -224,7 +247,12 @@ class PixelPinOverlay {
         user-select: none;
       }
       .pp-marker:hover { transform: scale(1.2); }
-      .pp-marker.resolved { opacity: 0.5; }
+      .pp-marker.resolved {
+        opacity: 0.3;
+        width: 18px;
+        height: 18px;
+        font-size: 9px;
+      }
 
       .pp-popover-container {
         position: fixed;
@@ -367,6 +395,114 @@ class PixelPinOverlay {
         color: #1a1a1a;
         font-weight: 600;
       }
+
+      .pp-severity-badge {
+        font-size: 10px;
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-weight: 600;
+        color: #fff;
+        margin-left: 6px;
+      }
+
+      .pp-diff-section {
+        background: #f8f9fa;
+        border: 1px solid #e9ecef;
+        border-radius: 6px;
+        padding: 10px;
+        margin-bottom: 10px;
+      }
+
+      .pp-diff-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-family: 'SF Mono', Monaco, monospace;
+        font-size: 12px;
+      }
+
+      .pp-diff-current {
+        color: #E74C3C;
+        text-decoration: line-through;
+      }
+
+      .pp-diff-arrow {
+        color: #888;
+        font-size: 14px;
+      }
+
+      .pp-diff-expected {
+        color: #2ECC71;
+        font-weight: 600;
+      }
+
+      .pp-diff-property {
+        color: #6741d9;
+        font-weight: 500;
+        margin-bottom: 4px;
+        font-family: 'SF Mono', Monaco, monospace;
+        font-size: 11px;
+      }
+
+      .pp-fix-block {
+        background: #1a1a2e;
+        border-radius: 6px;
+        padding: 10px 12px;
+        margin-bottom: 10px;
+        font-family: 'SF Mono', Monaco, monospace;
+        font-size: 12px;
+        color: #e0e0e0;
+        line-height: 1.6;
+        position: relative;
+      }
+
+      .pp-fix-css {
+        color: #a8d8ea;
+      }
+
+      .pp-fix-tailwind {
+        color: #95A5A6;
+        font-size: 11px;
+        margin-top: 4px;
+      }
+
+      .pp-copy-btn {
+        position: absolute;
+        top: 6px;
+        right: 6px;
+        background: rgba(255,255,255,0.1);
+        border: 1px solid rgba(255,255,255,0.2);
+        color: #ccc;
+        font-size: 11px;
+        padding: 3px 8px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+        transition: all 0.15s;
+        pointer-events: auto;
+      }
+      .pp-copy-btn:hover {
+        background: rgba(255,255,255,0.2);
+        color: #fff;
+      }
+
+      .pp-toast {
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #1a1a2e;
+        color: #fff;
+        padding: 8px 16px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.2s;
+        z-index: 10;
+      }
+      .pp-toast.visible { opacity: 1; }
     `;
     this.shadow.appendChild(style);
   }
@@ -468,8 +604,60 @@ class PixelPinOverlay {
     });
     form.appendChild(assigneeChips);
 
+    // Severity chips
+    const sevLabel = this._el('div', 'pp-section-label');
+    sevLabel.textContent = 'Severity';
+    form.appendChild(sevLabel);
+
+    const sevChips = this._el('div', 'pp-type-chips');
+    let selectedSeverity = null;
+    SEVERITIES.forEach(sev => {
+      const chip = this._el('button', 'pp-chip');
+      chip.textContent = sev.label;
+      chip.onclick = () => {
+        sevChips.querySelectorAll('.pp-chip').forEach(c => {
+          c.classList.remove('selected');
+          c.style.background = '';
+          c.style.color = '#555';
+        });
+        chip.classList.add('selected');
+        chip.style.background = sev.color;
+        chip.style.color = '#fff';
+        selectedSeverity = sev.label;
+        updateSubmitState();
+      };
+      sevChips.appendChild(chip);
+    });
+    form.appendChild(sevChips);
+
+    // Expected value input
+    const expectedLabel = this._el('div', 'pp-section-label');
+    expectedLabel.textContent = 'Expected Value (optional)';
+    form.appendChild(expectedLabel);
+
+    const expectedInput = this._el('input', 'pp-expected-input');
+    expectedInput.type = 'text';
+    // Smart placeholder based on selected type
+    const placeholders = {
+      Spacing: 'e.g. 16px',
+      Typography: 'e.g. 14px, bold',
+      Color: 'e.g. #333333',
+      Size: 'e.g. 200px',
+      Alignment: 'e.g. center',
+      General: 'What should it be?',
+    };
+    expectedInput.placeholder = 'What should it be?';
+    form.appendChild(expectedInput);
+
+    // Update placeholder when type changes
+    chips.addEventListener('click', () => {
+      if (selectedType) {
+        expectedInput.placeholder = placeholders[selectedType] || 'What should it be?';
+      }
+    });
+
     function updateSubmitState() {
-      submitBtn.disabled = !(selectedType && selectedAssignee);
+      submitBtn.disabled = !(selectedType && selectedAssignee && selectedSeverity);
     }
 
     // Note textarea
@@ -487,10 +675,12 @@ class PixelPinOverlay {
     submitBtn.textContent = 'Pin It';
     submitBtn.disabled = true;
     submitBtn.onclick = () => {
-      if (!selectedType || !selectedAssignee) return;
+      if (!selectedType || !selectedAssignee || !selectedSeverity) return;
       this._onFormSubmit?.({
         feedbackType: selectedType,
         assignee: selectedAssignee,
+        severity: selectedSeverity,
+        expectedValue: expectedInput.value.trim(),
         note: noteInput.value.trim(),
       });
       this.hideForm();
@@ -570,9 +760,11 @@ class PixelPinOverlay {
     this.popoverContainer.style.display = 'block';
     this.popoverContainer.innerHTML = '';
 
+    const isResolved = pin.status === 'Resolved';
     const pop = this._el('div', 'pp-popover');
+    if (isResolved) pop.style.opacity = '0.7';
 
-    // Header
+    // Header: #1 Spacing + severity badge + status
     const header = this._el('div', 'pp-popover-header');
     const badge = this._el('span', 'pp-popover-badge');
     const dot = this._el('span', 'pp-popover-badge-dot');
@@ -580,8 +772,16 @@ class PixelPinOverlay {
     const typeLabel = document.createTextNode(`#${pin.number} ${pin.feedbackType}`);
     badge.append(dot, typeLabel);
 
+    // Severity badge
+    if (pin.severity) {
+      const sevBadge = this._el('span', 'pp-severity-badge');
+      sevBadge.textContent = pin.severity;
+      sevBadge.style.background = SEVERITY_COLORS[pin.severity] || '#95A5A6';
+      badge.appendChild(sevBadge);
+    }
+
     const statusBadge = this._el('span', 'pp-popover-status ' +
-      (pin.status === 'Resolved' ? 'pp-status-resolved' : 'pp-status-pending'));
+      (isResolved ? 'pp-status-resolved' : 'pp-status-pending'));
     statusBadge.textContent = pin.status;
 
     header.append(badge, statusBadge);
@@ -590,7 +790,7 @@ class PixelPinOverlay {
     // Assignee
     if (pin.assignee) {
       const assignee = this._el('div', 'pp-popover-assignee');
-      assignee.innerHTML = `Assigned to <strong>${pin.assignee}</strong>`;
+      assignee.innerHTML = `Assigned to <strong>${this._escapeHtml(pin.assignee)}</strong>`;
       pop.appendChild(assignee);
     }
 
@@ -601,8 +801,55 @@ class PixelPinOverlay {
       pop.appendChild(note);
     }
 
-    // CSS properties
-    if (pin.cssProperties && Object.keys(pin.cssProperties).length) {
+    // "What's wrong" — Current → Expected diff
+    if (pin.fix && pin.fix.property) {
+      const diffSection = this._el('div', 'pp-diff-section');
+
+      const propLabel = this._el('div', 'pp-diff-property');
+      propLabel.textContent = pin.fix.property;
+      diffSection.appendChild(propLabel);
+
+      const diffRow = this._el('div', 'pp-diff-row');
+      const current = this._el('span', 'pp-diff-current');
+      current.textContent = pin.fix.currentValue;
+      const arrow = this._el('span', 'pp-diff-arrow');
+      arrow.textContent = '\u2192';
+      const expected = this._el('span', 'pp-diff-expected');
+      expected.textContent = pin.fix.expectedValue;
+      diffRow.append(current, arrow, expected);
+      diffSection.appendChild(diffRow);
+
+      pop.appendChild(diffSection);
+    }
+
+    // Copyable fix block
+    if (pin.fix && pin.fix.cssFix) {
+      const fixBlock = this._el('div', 'pp-fix-block');
+
+      const cssLine = this._el('div', 'pp-fix-css');
+      cssLine.textContent = pin.fix.cssFix;
+      fixBlock.appendChild(cssLine);
+
+      if (pin.fix.tailwindClass) {
+        const twLine = this._el('div', 'pp-fix-tailwind');
+        twLine.textContent = `Tailwind: ${pin.fix.tailwindClass}`;
+        fixBlock.appendChild(twLine);
+      }
+
+      const copyBtn = this._el('button', 'pp-copy-btn');
+      copyBtn.textContent = 'Copy';
+      copyBtn.onclick = () => {
+        navigator.clipboard.writeText(pin.fix.cssFix).then(() => {
+          this._showToast('Copied to clipboard');
+        });
+      };
+      fixBlock.appendChild(copyBtn);
+
+      pop.appendChild(fixBlock);
+    }
+
+    // Fallback: show CSS properties if no fix generated
+    if (!pin.fix && pin.cssProperties && Object.keys(pin.cssProperties).length) {
       const css = this._el('div', 'pp-popover-css');
       for (const [prop, val] of Object.entries(pin.cssProperties)) {
         const line = this._el('div', 'pp-css-line');
@@ -658,7 +905,7 @@ class PixelPinOverlay {
     let top = markerRect.bottom + 8;
     let left = markerRect.left - 138;
 
-    if (top + 250 > window.innerHeight) top = Math.max(8, markerRect.top - 250 - 8);
+    if (top + 300 > window.innerHeight) top = Math.max(8, markerRect.top - 300 - 8);
     if (left < 8) left = 8;
     if (left + 300 > window.innerWidth - 8) left = window.innerWidth - 308;
 
@@ -670,6 +917,30 @@ class PixelPinOverlay {
     this.popoverContainer.style.display = 'none';
     this.popoverContainer.innerHTML = '';
     this._activePopoverId = null;
+  }
+
+  _escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  _showToast(message) {
+    // Remove existing toast
+    const existing = this.shadow.querySelector('.pp-toast');
+    if (existing) existing.remove();
+
+    const toast = this._el('div', 'pp-toast');
+    toast.textContent = message;
+    this.shadow.appendChild(toast);
+
+    requestAnimationFrame(() => {
+      toast.classList.add('visible');
+      setTimeout(() => {
+        toast.classList.remove('visible');
+        setTimeout(() => toast.remove(), 200);
+      }, 1500);
+    });
   }
 
   destroy() {
