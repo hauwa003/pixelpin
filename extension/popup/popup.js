@@ -1,4 +1,4 @@
-// PixelPin Popup — name selection, inspect toggle, filtered pin list
+// PixelPin Popup — name selection, inspect toggle, severity filter, developer-friendly pin list
 
 const TYPE_COLORS = {
   Spacing: '#4A90D9',
@@ -7,6 +7,12 @@ const TYPE_COLORS = {
   Size: '#F39C12',
   Alignment: '#2ECC71',
   General: '#95A5A6',
+};
+
+const SEVERITY_COLORS = {
+  Critical: '#E74C3C',
+  Improvement: '#F39C12',
+  'Nice-to-have': '#95A5A6',
 };
 
 const TEAM_MEMBERS = ['Hauwa', 'Jaf', 'Nico', 'Dan'];
@@ -21,7 +27,9 @@ const inspectBtn = document.getElementById('inspectBtn');
 const inspectLabel = document.getElementById('inspectLabel');
 const userName = document.getElementById('userName');
 const totalCount = document.getElementById('totalCount');
+const criticalCount = document.getElementById('criticalCount');
 const pendingCount = document.getElementById('pendingCount');
+const filterBar = document.getElementById('filterBar');
 const pinList = document.getElementById('pinList');
 const emptyState = document.getElementById('emptyState');
 const clearBtn = document.getElementById('clearBtn');
@@ -30,6 +38,8 @@ const switchUserBtn = document.getElementById('switchUserBtn');
 let isInspecting = false;
 let currentTabUrl = '';
 let currentUser = '';
+let currentFilter = 'all';
+let cachedPins = [];
 
 // ── Name Selection ──
 
@@ -115,7 +125,28 @@ function updateInspectButton() {
   }
 }
 
-// ── Pin List (filtered by current user) ──
+// ── Severity Filter ──
+
+filterBar.addEventListener('click', (e) => {
+  const btn = e.target.closest('.filter-btn');
+  if (!btn) return;
+
+  filterBar.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+
+  currentFilter = btn.dataset.filter;
+  applyFilter();
+});
+
+function applyFilter() {
+  let filtered = cachedPins;
+  if (currentFilter !== 'all') {
+    filtered = cachedPins.filter(p => p.severity === currentFilter);
+  }
+  renderPinList(filtered);
+}
+
+// ── Pin List (filtered by current user + severity) ──
 
 async function loadPins() {
   if (!currentTabUrl) return;
@@ -128,9 +159,9 @@ async function loadPins() {
   if (!response?.success) return;
 
   const allPins = response.pins;
-  const myPins = allPins.filter(p => p.assignee === currentUser);
-  renderPinList(myPins);
-  updateStats(myPins);
+  cachedPins = allPins.filter(p => p.assignee === currentUser);
+  updateStats(cachedPins);
+  applyFilter();
 }
 
 function renderPinList(pins) {
@@ -149,6 +180,12 @@ function renderPinList(pins) {
     const item = document.createElement('div');
     item.className = 'pin-item';
 
+    // Severity dot
+    const sevDot = document.createElement('div');
+    sevDot.className = 'pin-severity-dot';
+    sevDot.style.background = SEVERITY_COLORS[pin.severity] || '#ccc';
+    sevDot.title = pin.severity || '';
+
     const number = document.createElement('div');
     number.className = 'pin-number';
     number.style.background = TYPE_COLORS[pin.feedbackType] || '#95A5A6';
@@ -164,18 +201,76 @@ function renderPinList(pins) {
     type.className = 'pin-type';
     type.textContent = pin.feedbackType;
 
+    // Severity badge inline
+    if (pin.severity) {
+      const sevBadge = document.createElement('span');
+      sevBadge.className = 'pin-severity-badge';
+      sevBadge.textContent = pin.severity;
+      sevBadge.style.background = SEVERITY_COLORS[pin.severity] || '#95A5A6';
+      typeRow.append(type, sevBadge);
+    } else {
+      typeRow.appendChild(type);
+    }
+
     const badge = document.createElement('span');
     badge.className = 'pin-status-badge ' +
       (pin.status === 'Resolved' ? 'badge-resolved' : 'badge-pending');
     badge.textContent = pin.status;
+    typeRow.appendChild(badge);
 
-    typeRow.append(type, badge);
+    info.appendChild(typeRow);
 
-    const note = document.createElement('div');
-    note.className = 'pin-note';
-    note.textContent = pin.note || 'No description';
+    // Current → Expected diff inline
+    if (pin.fix && pin.fix.currentValue && pin.fix.expectedValue) {
+      const diff = document.createElement('div');
+      diff.className = 'pin-diff';
 
-    info.append(typeRow, note);
+      const current = document.createElement('span');
+      current.className = 'pin-diff-current';
+      current.textContent = pin.fix.currentValue;
+
+      const arrow = document.createTextNode(' \u2192 ');
+
+      const expected = document.createElement('span');
+      expected.className = 'pin-diff-expected';
+      expected.textContent = pin.fix.expectedValue;
+
+      diff.append(current, arrow, expected);
+      info.appendChild(diff);
+    }
+
+    // Note
+    if (pin.note) {
+      const note = document.createElement('div');
+      note.className = 'pin-note';
+      note.textContent = pin.note;
+      info.appendChild(note);
+    }
+
+    // Copyable fix snippet
+    if (pin.fix && pin.fix.cssFix) {
+      const snippet = document.createElement('div');
+      snippet.className = 'pin-fix-snippet';
+      snippet.title = 'Click to copy';
+
+      const code = document.createElement('span');
+      code.textContent = pin.fix.cssFix;
+
+      const copyIcon = document.createElement('span');
+      copyIcon.className = 'pin-fix-copy-icon';
+      copyIcon.textContent = '\u2398';
+
+      snippet.append(code, copyIcon);
+      snippet.addEventListener('click', (e) => {
+        e.stopPropagation();
+        navigator.clipboard.writeText(pin.fix.cssFix).then(() => {
+          copyIcon.textContent = '\u2713';
+          setTimeout(() => { copyIcon.textContent = '\u2398'; }, 1200);
+        });
+      });
+
+      info.appendChild(snippet);
+    }
 
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'pin-delete-btn';
@@ -190,7 +285,7 @@ function renderPinList(pins) {
       await loadPins();
     });
 
-    item.append(number, info, deleteBtn);
+    item.append(sevDot, number, info, deleteBtn);
     pinList.appendChild(item);
   });
 }
@@ -198,7 +293,9 @@ function renderPinList(pins) {
 function updateStats(pins) {
   const total = pins.length;
   const pending = pins.filter(p => p.status === 'Pending').length;
+  const critical = pins.filter(p => p.severity === 'Critical').length;
   totalCount.textContent = `${total} pin${total !== 1 ? 's' : ''}`;
+  criticalCount.textContent = `${critical} critical`;
   pendingCount.textContent = `${pending} pending`;
 }
 

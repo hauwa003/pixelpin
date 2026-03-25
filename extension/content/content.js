@@ -100,6 +100,100 @@
     return '/' + parts.join('/');
   }
 
+  // ── Code Generation Engine ──
+
+  const tokens = window.__pixelPinTokens || {};
+
+  function mapToTailwind(property, value) {
+    if (!value) return null;
+    const val = value.trim();
+    const prefixes = tokens.propertyPrefix || {};
+
+    // Border radius has full class names
+    if (property === 'border-radius' && tokens.borderRadius?.[val]) {
+      return tokens.borderRadius[val];
+    }
+
+    // Font weight
+    if (property === 'font-weight' && tokens.fontWeight?.[val]) {
+      const prefix = prefixes[property] || 'font';
+      return `${prefix}-${tokens.fontWeight[val]}`;
+    }
+
+    // Font size
+    if (property === 'font-size' && tokens.fontSize?.[val]) {
+      const prefix = prefixes[property] || 'text';
+      return `${prefix}-${tokens.fontSize[val]}`;
+    }
+
+    // Spacing-based properties (margin, padding, width, height, gap)
+    const spacingProps = [
+      'padding', 'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
+      'margin', 'margin-top', 'margin-right', 'margin-bottom', 'margin-left',
+      'width', 'height', 'gap',
+    ];
+    if (spacingProps.includes(property) && tokens.spacing?.[val]) {
+      const prefix = prefixes[property] || property.charAt(0);
+      return `${prefix}-${tokens.spacing[val]}`;
+    }
+
+    return null;
+  }
+
+  // Determine which CSS property to fix based on feedback type
+  function getRelevantProperty(feedbackType, cssProperties) {
+    const typeMap = {
+      Spacing: ['padding', 'margin'],
+      Typography: ['font-size', 'font-weight', 'line-height', 'font-family'],
+      Color: ['color', 'background'],
+      Size: ['width', 'height'],
+      Alignment: ['display'],
+    };
+
+    const candidates = typeMap[feedbackType] || [];
+    for (const prop of candidates) {
+      if (cssProperties[prop] !== undefined) return prop;
+    }
+    return null;
+  }
+
+  function generateFix(cssProperties, feedbackType, expectedValue) {
+    if (!expectedValue) return null;
+
+    const property = getRelevantProperty(feedbackType, cssProperties);
+    if (!property && feedbackType !== 'General') return null;
+
+    // For General type, try to parse "property: value" from expectedValue
+    if (feedbackType === 'General') {
+      const match = expectedValue.match(/^([\w-]+)\s*:\s*(.+)$/);
+      if (match) {
+        const prop = match[1];
+        const val = match[2].replace(/;$/, '').trim();
+        const currentVal = cssProperties[prop] || 'unknown';
+        const tw = mapToTailwind(prop, val);
+        return {
+          cssFix: `${prop}: ${val}; /* was ${currentVal} */`,
+          tailwindClass: tw,
+          property: prop,
+          currentValue: currentVal,
+          expectedValue: val,
+        };
+      }
+      return null;
+    }
+
+    const currentValue = cssProperties[property] || 'unknown';
+    const tw = mapToTailwind(property, expectedValue);
+
+    return {
+      cssFix: `${property}: ${expectedValue}; /* was ${currentValue} */`,
+      tailwindClass: tw,
+      property,
+      currentValue,
+      expectedValue,
+    };
+  }
+
   // ── Inspect Mode ──
 
   function startInspecting() {
@@ -158,6 +252,7 @@
     const xpath = generateXPath(el);
 
     overlay.showForm(rect, cssProperties, (formData) => {
+      const fix = generateFix(cssProperties, formData.feedbackType, formData.expectedValue);
       savePin({
         url: currentUrl,
         selector,
@@ -174,6 +269,9 @@
         feedbackType: formData.feedbackType,
         assignee: formData.assignee,
         note: formData.note,
+        severity: formData.severity,
+        expectedValue: formData.expectedValue || '',
+        fix: fix,
       });
     });
   }
