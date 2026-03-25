@@ -1,4 +1,4 @@
-// PixelPin Popup — inspect toggle, pin list, stats
+// PixelPin Popup — name selection, inspect toggle, filtered pin list
 
 const TYPE_COLORS = {
   Spacing: '#4A90D9',
@@ -9,16 +9,54 @@ const TYPE_COLORS = {
   General: '#95A5A6',
 };
 
+const TEAM_MEMBERS = ['Hauwa', 'Jaf', 'Nico', 'Dan'];
+
+// Screens
+const nameScreen = document.getElementById('nameScreen');
+const mainScreen = document.getElementById('mainScreen');
+const nameButtons = document.getElementById('nameButtons');
+
+// Main screen elements
 const inspectBtn = document.getElementById('inspectBtn');
 const inspectLabel = document.getElementById('inspectLabel');
+const userName = document.getElementById('userName');
 const totalCount = document.getElementById('totalCount');
 const pendingCount = document.getElementById('pendingCount');
 const pinList = document.getElementById('pinList');
 const emptyState = document.getElementById('emptyState');
 const clearBtn = document.getElementById('clearBtn');
+const switchUserBtn = document.getElementById('switchUserBtn');
 
 let isInspecting = false;
 let currentTabUrl = '';
+let currentUser = '';
+
+// ── Name Selection ──
+
+function buildNameScreen() {
+  nameButtons.innerHTML = '';
+  TEAM_MEMBERS.forEach(name => {
+    const btn = document.createElement('button');
+    btn.className = 'name-btn';
+    btn.textContent = name;
+    btn.addEventListener('click', () => selectUser(name));
+    nameButtons.appendChild(btn);
+  });
+}
+
+async function selectUser(name) {
+  currentUser = name;
+  await chrome.storage.local.set({ pixelpin_user: name });
+  showMainScreen();
+}
+
+function showMainScreen() {
+  nameScreen.style.display = 'none';
+  mainScreen.style.display = '';
+  userName.textContent = currentUser;
+  switchUserBtn.textContent = currentUser;
+  init();
+}
 
 // ── Init ──
 
@@ -26,12 +64,10 @@ async function init() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   currentTabUrl = tab?.url || '';
 
-  // Check current state
   const state = await chrome.runtime.sendMessage({ type: 'GET_STATE' });
   isInspecting = state?.inspecting || false;
   updateInspectButton();
 
-  // Show pin markers on page while popup is open
   if (tab?.id) {
     chrome.tabs.sendMessage(tab.id, { type: 'SHOW_PINS' }).catch(() => {});
   }
@@ -39,7 +75,6 @@ async function init() {
   await loadPins();
 }
 
-// Hide pin markers from page when popup closes
 window.addEventListener('unload', () => {
   if (!isInspecting) {
     chrome.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
@@ -80,7 +115,7 @@ function updateInspectButton() {
   }
 }
 
-// ── Pin List ──
+// ── Pin List (filtered by current user) ──
 
 async function loadPins() {
   if (!currentTabUrl) return;
@@ -92,13 +127,13 @@ async function loadPins() {
 
   if (!response?.success) return;
 
-  const pins = response.pins;
-  renderPinList(pins);
-  updateStats(pins);
+  const allPins = response.pins;
+  const myPins = allPins.filter(p => p.assignee === currentUser);
+  renderPinList(myPins);
+  updateStats(myPins);
 }
 
 function renderPinList(pins) {
-  // Clear existing items (keep empty state)
   pinList.querySelectorAll('.pin-item').forEach(el => el.remove());
 
   if (!pins.length) {
@@ -178,7 +213,14 @@ clearBtn.addEventListener('click', async () => {
   await loadPins();
 });
 
-// ── Listen for inspect stop from content script ──
+// ── Switch User ──
+
+switchUserBtn.addEventListener('click', () => {
+  mainScreen.style.display = 'none';
+  nameScreen.style.display = '';
+});
+
+// ── Listen for inspect stop ──
 
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg.type === 'INSPECT_STOPPED') {
@@ -187,4 +229,13 @@ chrome.runtime.onMessage.addListener((msg) => {
   }
 });
 
-init();
+// ── Startup: check for saved user ──
+
+(async () => {
+  buildNameScreen();
+  const result = await chrome.storage.local.get('pixelpin_user');
+  if (result.pixelpin_user) {
+    currentUser = result.pixelpin_user;
+    showMainScreen();
+  }
+})();

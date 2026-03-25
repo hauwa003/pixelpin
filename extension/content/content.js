@@ -172,6 +172,7 @@
         scrollY: window.scrollY,
         cssProperties,
         feedbackType: formData.feedbackType,
+        assignee: formData.assignee,
         note: formData.note,
       });
     });
