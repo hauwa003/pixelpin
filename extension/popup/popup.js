@@ -65,14 +65,6 @@ function showMainScreen() {
   mainScreen.style.display = '';
   userName.textContent = currentUser;
   switchUserBtn.textContent = currentUser;
-
-  // Send current user to content script so the dock knows who's inspecting
-  chrome.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
-    if (tab?.id) {
-      chrome.tabs.sendMessage(tab.id, { type: 'SET_USER', payload: { user: currentUser } }).catch(() => {});
-    }
-  });
-
   init();
 }
 
